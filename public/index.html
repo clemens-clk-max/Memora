@@ -629,7 +629,7 @@ html,body{height:100%;font-family:'Nunito',sans-serif;background:var(--bg);color
 // ════════════════════════════════════════════════════════════
 // CONFIG – set your backend URL here
 // ════════════════════════════════════════════════════════════
-const API = ''; // empty = same origin (e.g. '/api'), or 'https://yourserver.com'
+const API = ''; // Uses relative paths - works automatically with same-origin server
 
 // ════════════════════════════════════════════════════════════
 // LEVELS / CONSTANTS
@@ -1356,17 +1356,25 @@ let at; function showAch(title,sub){qs('achTitle').textContent=title;qs('achSub'
 // INIT – auto-login attempt via refresh token cookie
 // ════════════════════════════════════════════════════════════
 (async function init() {
-  // Try to restore session silently
-  const refreshed = await tryRefreshToken();
-  if (refreshed) {
-    const res = await fetch(API + '/api/auth/me', { headers:{Authorization:`Bearer ${accessToken}`}, credentials:'include' });
-    if (res.ok) {
-      currentUser = (await res.json()).user;
-      afterLogin();
-      return;
-    }
-  }
+  // Always show login first immediately
   showScreen('login');
+  // Then try to restore session silently in background
+  try {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const res = await fetch(API + '/api/auth/me', {
+        headers:{ Authorization:`Bearer ${accessToken}` },
+        credentials:'include'
+      }).catch(()=>null);
+      if (res && res.ok) {
+        currentUser = (await res.json()).user;
+        afterLogin();
+      }
+    }
+  } catch(e) {
+    // Network error – stay on login screen, that's fine
+    console.log('Session restore failed, showing login.');
+  }
 })();
 </script>
 </body>
