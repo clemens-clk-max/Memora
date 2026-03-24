@@ -63,7 +63,19 @@ app.use(helmet({
 
 // CORS – only allow your frontend domain
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (same-origin, Postman, etc.)
+    if (!origin) return callback(null, true);
+    const allowed = [
+      process.env.CLIENT_URL,
+      'http://localhost:3000',
+    ].filter(Boolean);
+    // Also allow any onrender.com subdomain during development
+    if (allowed.includes(origin) || origin.endsWith('.onrender.com')) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS: origin not allowed'));
+  },
   credentials: true,
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
