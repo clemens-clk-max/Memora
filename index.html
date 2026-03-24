@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -5,8 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Memora – Strukturiertes Lernen mit Spaced Repetition und KI-Karteikarten.">
 <title>Memora – Strukturiertes Lernen</title>
-<!-- Stripe.js loaded from Stripe's CDN (required for PCI compliance) -->
-<script src="https://js.stripe.com/v3/"></script>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -629,7 +628,7 @@ html,body{height:100%;font-family:'Nunito',sans-serif;background:var(--bg);color
 // ════════════════════════════════════════════════════════════
 // CONFIG – set your backend URL here
 // ════════════════════════════════════════════════════════════
-const API = ''; // empty = same origin (e.g. '/api'), or 'https://yourserver.com'
+const API = ''; // Uses relative paths - works automatically with same-origin server
 
 // ════════════════════════════════════════════════════════════
 // LEVELS / CONSTANTS
@@ -857,6 +856,15 @@ function checkPaywall() {
 async function startCheckout() {
   const btn = document.getElementById('paywallBtn') || document.getElementById('upgradeBtn');
   if (btn) { btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Weiter…'; }
+  // Load Stripe.js lazily only when needed
+  if (!window.Stripe) {
+    await new Promise(function(resolve, reject) {
+      const s = document.createElement('script');
+      s.src = 'https://js.stripe.com/v3/';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
   try {
     const res  = await apiFetch('/api/stripe/checkout', { method:'POST' });
     if (!res) return;
@@ -1355,19 +1363,30 @@ let at; function showAch(title,sub){qs('achTitle').textContent=title;qs('achSub'
 // ════════════════════════════════════════════════════════════
 // INIT – auto-login attempt via refresh token cookie
 // ════════════════════════════════════════════════════════════
-(async function init() {
-  // Try to restore session silently
-  const refreshed = await tryRefreshToken();
-  if (refreshed) {
-    const res = await fetch(API + '/api/auth/me', { headers:{Authorization:`Bearer ${accessToken}`}, credentials:'include' });
-    if (res.ok) {
-      currentUser = (await res.json()).user;
+// Show login immediately - no blocking network calls
+showScreen('login');
+
+// Silently restore session in background after page loads
+setTimeout(async function restoreSession() {
+  try {
+    const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.accessToken) return;
+    accessToken = data.accessToken;
+    scheduleTokenRefresh();
+    const me = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + data.accessToken },
+      credentials: 'include'
+    });
+    if (me.ok) {
+      currentUser = (await me.json()).user;
       afterLogin();
-      return;
     }
+  } catch(e) {
+    // No saved session, stay on login
   }
-  showScreen('login');
-})();
+}, 200);
 </script>
 </body>
 </html>
